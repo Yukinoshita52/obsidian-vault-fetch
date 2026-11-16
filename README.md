@@ -74,6 +74,18 @@ Node.js 22+ is used only for development. Runtime dependencies are bundled into 
 
 A release tag must exactly match `manifest.json`, for example `0.1.0` (not `v0.1.0`). The release workflow builds from the tagged source and uploads `main.js`, `manifest.json` and `styles.css` separately.
 
+### Review fixes before releasing
+
+**Repeat preview scans on the same fix branch until they pass, then publish one patch release.**
+
+1. Use one `feat/*` branch and one unpublished patch version throughout the fix cycle. Keep `manifest.json`, `package.json`, `package-lock.json` and `versions.json` consistent.
+2. Run `npm run check` and `npm run build`, commit and push the branch. On the Community management page, select **Review branch**, enter the branch name or commit SHA, then choose **Run preview scan**.
+3. Fix errors on the same branch, commit, push and repeat the preview. The latest commit must have no **Error** findings before release. Address warnings and recommendations or record why they are retained. A failed preview does not require another version increment or Release.
+4. After merging to the default branch, confirm that the exact commit SHA to be tagged passed preview. If merging or further edits produce a new commit, preview that SHA again. Only then create the version tag and publish the single patch release.
+5. After publication, verify the release assets, build provenance and directory review result. A successful branch preview does not mean the published release is already installable from the directory.
+
+Documentation-only changes do not increment the plugin version or create a Release. See the [official management guide](https://docs.obsidian.md/community-directory/manage-entry) for preview scans.
+
 Directory submission is through [Obsidian Community](https://community.obsidian.md), following the [official submission guide](https://docs.obsidian.md/plugins/releasing/submit-plugin). It requires the publisher's Obsidian/GitHub account connection and directory review. No submission is implied by this repository.
 
 ## License

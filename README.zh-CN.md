@@ -59,6 +59,18 @@ npm run build
 
 开发需要 Node.js 22+。发布标签与 manifest 版本完全一致，例如 `0.1.0`。工作流从标签对应源码构建并上传三个独立附件，运行依赖及许可声明打包到 `main.js`。
 
+### 审核修复与补丁发布
+
+**在同一个修复分支反复预审，通过后再发布一个补丁版本。**
+
+1. 本轮修复使用同一个 `feat/*` 分支和一个尚未发布的补丁版本号，保持 `manifest.json`、`package.json`、`package-lock.json` 与 `versions.json` 一致。
+2. 运行 `npm run check` 和 `npm run build`，提交并推送分支。在 Community 管理页选择 **Review branch**，输入分支名或提交 SHA，点击 **Run preview scan**。
+3. 预审发现错误时，继续在同一分支修复、提交、推送并重新预审。以最新提交没有 **Error** 为发布门槛；处理 Warning、Recommendation，或记录保留原因。每次预审失败不单独递增版本或创建 Release。
+4. 合入主分支后，确认实际将要打标签的提交 SHA 已通过预审；合并或后续修改产生新提交时，对新 SHA 再次预审。通过后才创建版本标签，发布这一个补丁版本。
+5. 发布后核对正式 Release 的附件、来源证明和市场审核结果；分支预审通过不等于正式版本已经上架。
+
+仅更新文档不递增插件版本或创建 Release。预审入口详见 [官方管理指南](https://docs.obsidian.md/community-directory/manage-entry)。
+
 正式目录申请通过 [Obsidian Community](https://community.obsidian.md) 提交，需发布者连接 Obsidian 与 GitHub 账号并完成审核。详见 [官方提交指南](https://docs.obsidian.md/plugins/releasing/submit-plugin)。
 
 ## 许可
