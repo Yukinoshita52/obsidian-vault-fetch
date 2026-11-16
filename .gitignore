@@ -1,0 +1,11 @@
+node_modules/
+main.js
+*.js.map
+coverage/
+.obsidian/
+.dev/
+.env*
+data.json
+*.log
+.DS_Store
+*.tsbuildinfo

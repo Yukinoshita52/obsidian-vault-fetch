@@ -1,0 +1,29 @@
+{
+  "name": "obsidian-vault-fetch",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Install and update Obsidian plugins from private GitHub repositories.",
+  "scripts": {
+    "dev": "node scripts/build.mjs --watch",
+    "build": "node scripts/build.mjs && node scripts/validate-package.mjs --bundle",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm test && node scripts/validate-package.mjs"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.4.0",
+    "semver": "7.8.6"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/semver": "7.8.0",
+    "esbuild": "0.28.2",
+    "obsidian": "1.14.4",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "vault-fetch",
+  "name": "VaultFetch",
+  "version": "0.1.0",
+  "minAppVersion": "1.11.4",
+  "description": "Install and update plugins from private GitHub repositories using device-local credentials.",
+  "author": "VaultFetch contributors",
+  "isDesktopOnly": false
+}
