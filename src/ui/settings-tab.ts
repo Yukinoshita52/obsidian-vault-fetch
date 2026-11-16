@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, SecretComponent, Setting } from 'obsidian';
+import { App, PluginSettingTab, SecretComponent, Setting, requireApiVersion } from 'obsidian';
 import type { SettingDefinitionItem } from 'obsidian';
 import type VaultFetchPlugin from '../main';
 import { AddSourceModal, SourceOptionsModal } from './source-modal';
@@ -26,7 +26,9 @@ export class VaultFetchSettingsTab extends PluginSettingTab {
     const state = JSON.stringify({ ready: !!this.plugin.controller, error: this.plugin.initializationError,
       sources: this.plugin.controller?.settings.sources.map(source => [source.repository, source.name]) });
     if (state === this.indexedState) return;
-    if (typeof this.update === 'function') this.update();
+    if (requireApiVersion('1.13.0')) {
+      if (typeof this.update === 'function') this.update();
+    }
     this.indexedState = state;
   }
 
@@ -38,8 +40,10 @@ export class VaultFetchSettingsTab extends PluginSettingTab {
   }
 
   private refreshDefinitions(): void {
-    if (typeof this.update === 'function') this.update();
-    else this.renderLegacy();
+    if (requireApiVersion('1.13.0')) {
+      if (typeof this.update === 'function') { this.update(); return; }
+    }
+    this.renderLegacy();
   }
 
   private definitions(): TabDefinition[] {

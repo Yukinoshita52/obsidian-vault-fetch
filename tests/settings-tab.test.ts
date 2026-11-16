@@ -1,4 +1,4 @@
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import type { App, Setting, SettingDefinitionItem, SettingDefinitionRender, SettingGroup } from 'obsidian';
 import type VaultFetchPlugin from '../src/main';
 import { defaultSettings } from '../src/settings';
@@ -22,6 +22,7 @@ const ui = vi.hoisted(() => {
   }
   return { Element, Row };
 });
+const compatibility = vi.hoisted(() => ({ modern: true }));
 vi.mock('obsidian', () => ({
   App: class {}, PluginSettingTab: class {
     containerEl = new ui.Element();
@@ -31,8 +32,11 @@ vi.mock('obsidian', () => ({
     update() { this.settingItems = this.getSettingDefinitions(); }
   },
   Setting: ui.Row, SecretComponent: class {}, Modal: class {}, Notice: class {}, getLanguage: () => 'en',
+  requireApiVersion: (version: string) => version === '1.13.0' && compatibility.modern,
 }));
 import { VaultFetchSettingsTab } from '../src/ui/settings-tab';
+
+beforeEach(() => { compatibility.modern = true; });
 
 function setup(ready = true) {
   const listeners = new Set<() => void>();
@@ -81,9 +85,21 @@ it('reuses a native row without accumulating lists or allowing stale cleanup to 
 });
 
 it('keeps the pre-1.13 renderer working without leaking subscriptions on repeated display', () => {
+  compatibility.modern = false;
   const { tab, listeners } = setup();
-  Object.defineProperty(tab, 'update', { value: undefined });
+  Object.defineProperty(tab, 'update', { get() { throw new Error('A newer API was accessed on an older version.'); } });
   tab.refreshIndex(); tab.display(); tab.display();
+  expect(listeners.size).toBe(1);
+  tab.hide(); expect(listeners.size).toBe(0);
+});
+
+it('finishes initialization on older versions without reading the newer update API', () => {
+  compatibility.modern = false;
+  const { tab, listeners, plugin, controller } = setup(false);
+  Object.defineProperty(tab, 'update', { get() { throw new Error('A newer API was accessed on an older version.'); } });
+  tab.display();
+  plugin.controller = controller;
+  for (const listener of [...listeners]) listener();
   expect(listeners.size).toBe(1);
   tab.hide(); expect(listeners.size).toBe(0);
 });
