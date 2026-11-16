@@ -20,9 +20,11 @@ export default class VaultFetchPlugin extends Plugin {
   private initializing: Promise<void> = Promise.resolve();
   private initializingController?: VaultFetchController;
   private session?: RuntimeSession;
+  private settingsTab?: VaultFetchSettingsTab;
 
   onload(): void {
-    this.addSettingTab(new VaultFetchSettingsTab(this.app, this));
+    this.settingsTab = new VaultFetchSettingsTab(this.app, this);
+    this.addSettingTab(this.settingsTab);
     this.addCommand({ id: 'add-source', name: t('add'), callback: () => this.openAddSource() });
     this.addCommand({ id: 'check-updates', name: t('checkAll'), callback: () => { void this.run(() => this.controller?.checkAll() ?? Promise.resolve()); } });
     this.addRibbonIcon('download', 'VaultFetch', () => this.openAddSource());
@@ -76,6 +78,7 @@ export default class VaultFetchPlugin extends Plugin {
   }
 
   private refresh(): void {
+    try { this.settingsTab?.refreshIndex(); } catch { /* A settings window may close during initialization. */ }
     for (const listener of [...this.changed]) { try { listener(); } catch { /* Detached settings windows may close during a refresh. */ } }
   }
 

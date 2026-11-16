@@ -1,5 +1,6 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { ASSET_LIMITS, normalizeRepository, parsePluginManifest, validatePluginId } from './github';
+import { hasControlCharacters } from './validation';
 import { CODE_FILES, VaultFetchError } from '../types';
 import type {
   CodeFile, FileStore, InstallOptions, InstallResult, PluginBuild, PluginLifecycle, RecoveryResult,
@@ -31,7 +32,7 @@ function hash(bytes: Uint8Array): string {
 }
 
 function relativeDirectory(value: string): string {
-  if (!value || value.length > 1024 || /[\\\u0000-\u001f\u007f]/.test(value) ||
+  if (!value || value.length > 1024 || value.includes('\\') || hasControlCharacters(value) ||
       value.split('/').some(part => !part || part === '.' || part === '..' || part.includes(':'))) {
     throw new VaultFetchError('filesystem', 'The vault configuration directory is invalid.');
   }
@@ -252,13 +253,13 @@ export class PluginInstaller {
         throw new VaultFetchError('conflict', 'The managed plugin disappeared while its backup was being prepared.');
       }
       const newHashes: FileHashes = {};
-      for (const name of CODE_FILES) if (code[name]) newHashes[name] = hash(code[name]!);
+      for (const name of CODE_FILES) if (code[name]) newHashes[name] = hash(code[name]);
       journal = { schema: 1, phase: 'prepared', transactionId: '', pluginId: id, oldFiles, oldHashes, newHashes,
         enabled: this.lifecycle.isEnabled(id), loaded: this.lifecycle.isLoaded(id) };
       await this.mkdir(this.transactions, guard);
       for (let attempt = 0; attempt < 5; attempt++) {
         const random = new Uint8Array(16);
-        globalThis.crypto.getRandomValues(random);
+        window.crypto.getRandomValues(random);
         const nonce = Array.from(random, value => value.toString(16).padStart(2, '0')).join('');
         const candidate = `${this.transactions}/preparing-${nonce}`;
         if (!(await this.files.exists(candidate)) && !(await this.files.exists(`${this.transactions}/${nonce}`))) {

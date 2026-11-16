@@ -1,6 +1,7 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import { valid } from 'semver';
 import { VaultFetchError } from '../types';
+import { hasControlCharacters } from './validation';
 import type {
   HttpResponse, HttpTransport, PluginBuild, PluginManifest, PreparedRelease,
   ReleaseAsset, ReleaseSummary,
@@ -23,7 +24,7 @@ export function normalizeRepository(input: string): string {
   let repository = input.trim();
   if (/^[a-z][a-z0-9+.-]*:/i.test(repository)) {
     // Validate the original path before URL parsing can collapse dot segments.
-    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(repository) || /[%\\?#\u0000-\u0020\u007f]/.test(repository) ||
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(repository) || /[%\\?#]/.test(repository) || hasControlCharacters(repository, true) ||
         repository.split('/').some(part => part === '.' || part === '..')) {
       throw new VaultFetchError('repository', 'Use a GitHub HTTPS repository root without credentials, query, or fragment.');
     }
@@ -70,12 +71,12 @@ export function parsePluginManifest(bytes: Uint8Array): PluginManifest {
   return {
     id, name: value.name as string, version, minAppVersion,
     description: value.description as string, author: value.author as string,
-    ...(value.isDesktopOnly === undefined ? {} : { isDesktopOnly: value.isDesktopOnly as boolean }),
+    ...(value.isDesktopOnly === undefined ? {} : { isDesktopOnly: value.isDesktopOnly }),
   };
 }
 
 function safeTag(value: unknown): string {
-  if (typeof value !== 'string' || !value || value.length > 256 || /[\u0000-\u001f\u007f]/.test(value)) {
+  if (typeof value !== 'string' || !value || value.length > 256 || hasControlCharacters(value)) {
     throw new VaultFetchError('release', 'The release has an invalid tag.');
   }
   return value;
@@ -106,7 +107,7 @@ function checkedAsset(value: unknown, name: keyof typeof ASSET_LIMITS): ReleaseA
   if (asset.digest != null && (typeof asset.digest !== 'string' || !/^sha256:[a-f0-9]{64}$/i.test(asset.digest))) {
     throw new VaultFetchError('checksum', `The ${name} checksum is unsupported or malformed.`);
   }
-  return { id: asset.id as number, name, size: asset.size as number, ...(asset.digest ? { digest: asset.digest as string } : {}) };
+  return { id: asset.id as number, name, size: asset.size as number, ...(asset.digest ? { digest: asset.digest } : {}) };
 }
 
 function verifyBytes(bytes: Uint8Array, asset: ReleaseAsset): void {
@@ -127,7 +128,7 @@ export class GitHubClient {
     let token: string | null;
     try { token = this.token(); }
     catch { throw new VaultFetchError('authentication', 'The selected credential could not be read.'); }
-    if (token && /[\u0000-\u0020\u007f]/.test(token)) throw new VaultFetchError('authentication', 'The selected credential is invalid.');
+    if (token && hasControlCharacters(token, true)) throw new VaultFetchError('authentication', 'The selected credential is invalid.');
     try {
       response = await this.http.request(`${API}${path}`, {
         Accept: binary ? 'application/octet-stream' : 'application/vnd.github+json',

@@ -1,7 +1,6 @@
 .vault-fetch .vault-fetch-intro { margin-bottom: 1.5em; color: var(--text-muted); }
 .vault-fetch .vault-fetch-muted { color: var(--text-muted); font-size: var(--font-ui-small); }
 .vault-fetch .vault-fetch-source { padding: 1em 0; border-top: 1px solid var(--background-modifier-border); }
-.vault-fetch .vault-fetch-source h3 { margin: 0 0 0.35em; }
 .vault-fetch .vault-fetch-repository { overflow-wrap: anywhere; }
 .vault-fetch .vault-fetch-error { color: var(--text-error); overflow-wrap: anywhere; }
 .vault-fetch .vault-fetch-preview:not(:empty) { padding: 0.8em 1em; background: var(--background-secondary); border-radius: var(--radius-m); }
@@ -15,3 +14,4 @@
   .vault-fetch .setting-item-control { margin-left: 0; max-width: 100%; }
   .vault-fetch input[type="text"] { max-width: 100%; }
 }
+.vault-fetch .vault-fetch-list-row { display: block; padding: 0; }

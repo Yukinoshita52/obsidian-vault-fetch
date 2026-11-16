@@ -1,43 +1,111 @@
 import { App, PluginSettingTab, SecretComponent, Setting } from 'obsidian';
+import type { SettingDefinitionItem } from 'obsidian';
 import type VaultFetchPlugin from '../main';
 import { AddSourceModal, SourceOptionsModal } from './source-modal';
 import { t } from './strings';
 
+interface SettingRow {
+  name: string;
+  desc?: string;
+  aliases?: string[];
+  searchable?: boolean;
+  render(setting: Setting): void | (() => void);
+}
+type TabDefinition = SettingRow | { type: 'group'; heading: string; items: SettingRow[] };
+
 export class VaultFetchSettingsTab extends PluginSettingTab {
   private unsubscribe?: () => void;
   private list?: HTMLElement;
+  private indexedState = '';
 
   constructor(app: App, private readonly plugin: VaultFetchPlugin) { super(app, plugin); }
 
-  display(): void {
+  getSettingDefinitions(): SettingDefinitionItem[] { return this.definitions(); }
+
+  refreshIndex(): void {
+    const state = JSON.stringify({ ready: !!this.plugin.controller, error: this.plugin.initializationError,
+      sources: this.plugin.controller?.settings.sources.map(source => [source.repository, source.name]) });
+    if (state === this.indexedState) return;
+    if (typeof this.update === 'function') this.update();
+    this.indexedState = state;
+  }
+
+  private watch(callback: () => void): () => void {
     this.unsubscribe?.();
-    this.containerEl.empty(); this.containerEl.addClass('vault-fetch');
-    this.containerEl.createEl('h2', { text: 'VaultFetch' });
-    this.containerEl.createEl('p', { text: t('intro'), cls: 'vault-fetch-intro' });
+    const unsubscribe = this.plugin.subscribe(callback);
+    this.unsubscribe = unsubscribe;
+    return () => { unsubscribe(); if (this.unsubscribe === unsubscribe) this.unsubscribe = undefined; };
+  }
+
+  private refreshDefinitions(): void {
+    if (typeof this.update === 'function') this.update();
+    else this.renderLegacy();
+  }
+
+  private definitions(): TabDefinition[] {
+    this.containerEl.addClass('vault-fetch');
     const controller = this.plugin.controller;
     if (!controller) {
-      this.containerEl.createEl('p', { text: this.plugin.initializationError || t('loading'), cls: this.plugin.initializationError ? 'vault-fetch-error' : '' });
-      this.unsubscribe = this.plugin.subscribe(() => this.display());
-      return;
+      return [{ name: 'VaultFetch', desc: this.plugin.initializationError || t('loading'),
+        render: () => this.watch(() => this.refreshDefinitions()) }];
     }
-    new Setting(this.containerEl).setName(t('credentials')).setHeading();
-    new Setting(this.containerEl).setName(t('secret')).setDesc(t('secretHelp')).addComponent(el =>
-      new SecretComponent(this.app, el).setValue(controller.settings.secretName).onChange(name => {
-        void this.plugin.run(() => controller.mutate(next => { next.secretName = name ?? ''; }));
-      }));
-    this.containerEl.createEl('p', { text: t('noSecretSync'), cls: 'vault-fetch-muted' });
-    new Setting(this.containerEl).setName(t('startup')).setDesc(t('startupHelp')).addToggle(toggle => toggle.setValue(controller.settings.checkOnStartup).onChange(value => {
-      void this.plugin.run(() => controller.mutate(next => { next.checkOnStartup = value; }));
-    }));
-    new Setting(this.containerEl).setName(t('automatic')).setDesc(t('automaticHelp')).addToggle(toggle => toggle.setValue(controller.settings.applyUpdatesOnStartup).onChange(value => {
-      void this.plugin.run(() => controller.mutate(next => { next.applyUpdatesOnStartup = value; }));
-    }));
-    new Setting(this.containerEl).setName(t('sources')).setHeading()
-      .addButton(button => button.setButtonText(t('checkAll')).onClick(() => { void this.plugin.run(() => controller.checkAll()); }))
-      .addButton(button => button.setButtonText(t('add')).setCta().onClick(() => this.plugin.openAddSource()));
-    this.list = this.containerEl.createDiv({ cls: 'vault-fetch-sources' });
-    this.unsubscribe = this.plugin.subscribe(() => this.renderSources());
-    this.renderSources();
+    return [
+      { name: 'VaultFetch', desc: t('intro'), render: setting => { setting.setHeading(); } },
+      { type: 'group', heading: t('credentials'), items: [
+        { name: t('secret'), desc: `${t('secretHelp')} ${t('noSecretSync')}`, render: setting => {
+          setting.addComponent(el => new SecretComponent(this.app, el).setValue(controller.settings.secretName).onChange(name => {
+            void this.plugin.run(() => controller.mutate(next => { next.secretName = name ?? ''; }));
+          }));
+        } },
+      ] },
+      { name: t('startup'), desc: t('startupHelp'), render: setting => {
+        setting.addToggle(toggle => toggle.setValue(controller.settings.checkOnStartup).onChange(value => {
+          void this.plugin.run(() => controller.mutate(next => { next.checkOnStartup = value; }));
+        }));
+      } },
+      { name: t('automatic'), desc: t('automaticHelp'), render: setting => {
+        setting.addToggle(toggle => toggle.setValue(controller.settings.applyUpdatesOnStartup).onChange(value => {
+          void this.plugin.run(() => controller.mutate(next => { next.applyUpdatesOnStartup = value; }));
+        }));
+      } },
+      { name: t('sources'), aliases: [t('checkAll'), t('add')], render: setting => {
+        setting.setHeading()
+          .addButton(button => button.setButtonText(t('checkAll')).onClick(() => { void this.plugin.run(() => controller.checkAll()); }))
+          .addButton(button => button.setButtonText(t('add')).setCta().onClick(() => this.plugin.openAddSource()));
+      } },
+      { name: t('sources'), aliases: controller.settings.sources.flatMap(source => [source.name, source.repository]), render: setting => {
+        setting.settingEl.addClass('vault-fetch-list-row');
+        setting.settingEl.empty();
+        const list = setting.settingEl.createDiv({ cls: 'vault-fetch-sources' });
+        this.list = list;
+        let identities = JSON.stringify(controller.settings.sources.map(source => [source.repository, source.name]));
+        const unwatch = this.watch(() => {
+          const next = JSON.stringify(controller.settings.sources.map(source => [source.repository, source.name]));
+          if (next !== identities) { identities = next; this.refreshDefinitions(); }
+          else this.renderSources();
+        });
+        this.renderSources();
+        return () => { unwatch(); list.remove(); if (this.list === list) this.list = undefined; };
+      } },
+    ];
+  }
+
+  // Older Obsidian versions render the same definitions through this compatibility entry point.
+  display(): void { this.renderLegacy(); }
+
+  private renderLegacy(): void {
+    this.hide(); this.containerEl.empty();
+    const render = (definition: SettingRow) => {
+      const setting = new Setting(this.containerEl).setName(definition.name);
+      if (definition.desc) setting.setDesc(definition.desc);
+      definition.render(setting);
+    };
+    for (const definition of this.definitions()) {
+      if ('type' in definition) {
+        new Setting(this.containerEl).setName(definition.heading).setHeading();
+        definition.items.forEach(render);
+      } else render(definition);
+    }
   }
 
   private renderSources(): void {
@@ -47,7 +115,7 @@ export class VaultFetchSettingsTab extends PluginSettingTab {
     if (!controller.settings.sources.length) { this.list.createEl('p', { text: t('empty'), cls: 'vault-fetch-empty' }); return; }
     for (const source of controller.settings.sources) {
       const card = this.list.createDiv({ cls: 'vault-fetch-source' });
-      card.createEl('h3', { text: source.name });
+      new Setting(card).setName(source.name).setHeading();
       card.createEl('a', { text: source.repository, href: `https://github.com/${source.repository}`, cls: 'vault-fetch-repository' }).setAttr('rel', 'noopener noreferrer');
       const installed = controller.installed(source);
       const status = controller.status(source.repository);
@@ -74,5 +142,5 @@ export class VaultFetchSettingsTab extends PluginSettingTab {
     }
   }
 
-  hide(): void { this.unsubscribe?.(); this.unsubscribe = undefined; }
+  hide(): void { this.unsubscribe?.(); this.unsubscribe = undefined; this.list = undefined; }
 }

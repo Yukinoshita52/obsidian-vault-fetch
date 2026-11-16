@@ -1,4 +1,4 @@
-import { readFile, access } from 'node:fs/promises';
+import { readFile, access, readdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import semver from 'semver';
 
@@ -13,7 +13,22 @@ if (versions[manifest.version] !== manifest.minAppVersion) throw new Error('Comp
 if (!manifest.description.endsWith('.') || manifest.description.length > 250) throw new Error('Invalid directory description.');
 const tag = process.argv.slice(2).find(value => value !== '--bundle');
 if (tag && tag !== manifest.version) throw new Error('Release tag must exactly match manifest.version.');
-const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+async function sourceFiles(directory = '.') {
+  const files = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (['.git', 'node_modules', '.dev', 'coverage', '.DS_Store', 'main.js'].includes(entry.name) && directory === '.') continue;
+    const path = directory === '.' ? entry.name : `${directory}/${entry.name}`;
+    if (entry.isSymbolicLink()) throw new Error(`Unexpected symbolic link: ${path}.`);
+    if (entry.isDirectory()) files.push(...await sourceFiles(path));
+    else if (entry.isFile()) files.push(path);
+  }
+  return files;
+}
+const files = await sourceFiles();
+if (await access('.git').then(() => true, () => false)) {
+  const tracked = execFileSync('git', ['ls-files', '-z', '--cached'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  files.push(...tracked.split('\0').filter(path => path && !files.includes(path)));
+}
 if (process.argv.includes('--bundle')) files.push('main.js');
 const patterns = [
   /(?:gh[pousr]_[A-Za-z0-9_]{25,}|github_pat_[A-Za-z0-9_]{40,})/,

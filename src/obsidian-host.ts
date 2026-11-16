@@ -65,16 +65,16 @@ export function createObsidianHost(app: App, signal?: AbortSignal) {
       try {
         for (let redirects = 0; redirects <= 5; redirects++) {
           const api = new URL(current).origin === 'https://api.github.com';
-          let timer: ReturnType<typeof setTimeout> | undefined;
+          let timer: number | undefined;
           let onAbort: (() => void) | undefined;
           const timeout = deadline - Date.now();
           if (timeout <= 0) throw new Error('Request timed out');
           if (signal?.aborted) throw new Error('Request cancelled');
           const response = await Promise.race([
             requestUrl({ url: current, headers: api ? headers : { Accept: 'application/octet-stream' }, method: 'GET', throw: false }),
-            new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Request timed out')), timeout); }),
+            new Promise<never>((_, reject) => { timer = window.setTimeout(() => reject(new Error('Request timed out')), timeout); }),
             new Promise<never>((_, reject) => { onAbort = () => reject(new Error('Request cancelled')); signal?.addEventListener('abort', onAbort, { once: true }); }),
-          ]).finally(() => { if (timer) clearTimeout(timer); if (onAbort) signal?.removeEventListener('abort', onAbort); });
+          ]).finally(() => { if (timer !== undefined) window.clearTimeout(timer); if (onAbort) signal?.removeEventListener('abort', onAbort); });
           if (![301, 302, 303, 307, 308].includes(response.status)) return { status: response.status, headers: response.headers, bytes: new Uint8Array(response.arrayBuffer) };
           const location = Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'location')?.[1];
           if (!location) throw new Error('Missing redirect');
